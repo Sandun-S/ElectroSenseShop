@@ -1,11 +1,11 @@
-// Import the functions you need from the SDKs you need
+// Import statements for Firebase services
 import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// !! IMPORTANT !!
+// Replace this with your own Firebase config object from your project settings
 const firebaseConfig = {
   apiKey: "AIzaSyCLvtyzU1OoCDJxMGMNdS17NGB11LaU3ok",
   authDomain: "electrosense-shop.firebaseapp.com",
@@ -20,11 +20,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 
-
-
-
-
-npm install -g firebase-tools
-firebase login
-firebase init
-firebase deploy
+// Initialize and export Firebase services
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();

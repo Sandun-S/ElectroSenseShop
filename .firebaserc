@@ -1,5 +1,18 @@
 {
   "projects": {
-    "default": "sandunportfolio"
-  }
+    "default": "electrosense-shop"
+  },
+  "targets": {
+    "electrosense-shop": {
+      "hosting": {
+        "shop": [
+          "electrosense-shop"
+        ],
+        "admin": [
+          "electrosense-admin"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
