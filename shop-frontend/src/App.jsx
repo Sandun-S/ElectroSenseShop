@@ -1,16 +1,17 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import Header from './components/Header.jsx';
-import Footer from './components/Footer.jsx';
-import HomePage from './pages/HomePage.jsx';
-import ProductsPage from './pages/ProductsPage.jsx';
-import ItemDetailPage from './pages/ItemDetailPage.jsx';
-import CartPage from './pages/CartPage.jsx';
-import CheckoutPage from './pages/CheckoutPage.jsx';
-import OrderSuccessPage from './pages/OrderSuccessPage.jsx';
-import AuthPage from './pages/AuthPage.jsx';
-import MyAccountPage from './pages/MyAccountPage.jsx';
-import { useCurrentUser } from './hooks/useCurrentUser.js';
+import Header from './components/Header';
+import Footer from './components/Footer';
+import HomePage from './pages/HomePage';
+import ProductsPage from './pages/ProductsPage';
+import ItemDetailPage from './pages/ItemDetailPage';
+import CartPage from './pages/CartPage';
+import CheckoutPage from './pages/CheckoutPage';
+import OrderSuccessPage from './pages/OrderSuccessPage';
+import AuthPage from './pages/AuthPage';
+import MyAccountPage from './pages/MyAccountPage';
+import OrderDetailPage from './pages/OrderDetailPage'; // <-- NEW: Import the new page
+import { useCurrentUser } from './hooks/useCurrentUser';
 
 export default function App() {
   // This hook ensures we don't render the app until Firebase auth is ready
@@ -31,10 +32,11 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/products" element={<ProductsPage />} />
-          <Route path="/item/:productId" element={<ItemDetailPage />} />
+          <Route path="/products/:productId" element={<ItemDetailPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/order-success" element={<OrderSuccessPage />} />
+          <Route path="/order/:orderId" element={<OrderDetailPage />} /> {/* <-- NEW: Add the route */}
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/my-account" element={<MyAccountPage />} />
         </Routes>

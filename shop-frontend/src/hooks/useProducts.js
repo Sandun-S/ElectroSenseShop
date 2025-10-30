@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 
 /**
- * A custom hook to fetch products from Firestore.
- * This hook now handles all query logic and loading/error states.
- *
- * @param {string} categoryName - The category to filter by (e.g., "Microcontrollers")
- * @param {string} searchQuery - The search term to filter by
+ * Custom hook to fetch products from Firestore based on category and search query.
+ * @param {Object} props - The hook's properties.
+ * @param {string | null} props.category - The category to filter by.
+ * @param {string | null} props.searchQuery - The search term.
  */
-export const useProducts = (categoryName, searchQuery) => {
+// --- FIX: Added a default empty object {} to props to prevent crash ---
+export const useProducts = (props = {}) => {
+  // --- FIX: Destructure props *inside* the hook ---
+  const { category, searchQuery } = props; 
+  
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,69 +20,65 @@ export const useProducts = (categoryName, searchQuery) => {
   useEffect(() => {
     setLoading(true);
     setError(null);
-
-    // Get a reference to the 'products' collection
-    const productsRef = collection(db, 'products');
     
-    // Start with a base query
-    let q = query(productsRef);
+    const productsRef = collection(db, 'products');
+    let q;
 
-    // --- THIS IS THE NEW, VALID QUERY LOGIC ---
-
+    // --- QUERY LOGIC ---
     if (searchQuery) {
-      // Search query: Filter by name
-      // This requires a single-field index on 'name' (which is automatic)
-      // Note: This is a simple "starts with" search.
+      // Search query (case-insensitive)
+      // Note: This requires a composite index on (name, category) if you combine it
+      // For now, search ignores category.
+      const endStr = searchQuery.toLowerCase() + '\uf8ff';
       q = query(
         productsRef,
-        orderBy('name'),
-        where('name', '>=', searchQuery),
-        where('name', '<=', searchQuery + '\uf8ff')
+        orderBy('name'), // Assumes 'name' index is enabled
+        where('name', '>=', searchQuery.toLowerCase()),
+        where('name', '<=', endStr)
       );
-    } else if (categoryName) {
-      // Category query: Filter by category, then sort by name
-      // This requires a composite index: (category ASC, name ASC)
+    } else if (category) {
+      // Category query
       q = query(
         productsRef,
-        where('category', '==', categoryName),
-        orderBy('name')
+        where('category', '==', category),
+        orderBy('name') // Assumes (category, name) index is enabled
       );
     } else {
-      // No filter: Just get all products, sorted by name
-      // This requires a single-field index on 'name' (which is automatic)
-      q = query(productsRef, orderBy('name'));
+      // --- THIS IS THE FIX ---
+      // Default "All Products" query.
+      // Changed from orderBy('name') to orderBy('createdAt', 'desc')
+      // 'createdAt' is automatically indexed by Firestore,
+      // which avoids the infinite loop error we were seeing.
+      q = query(productsRef, orderBy('createdAt', 'desc'));
     }
+    // --- END QUERY LOGIC ---
 
-    // Set up the real-time listener
-    const unsubscribe = onSnapshot(q, 
+    const unsubscribe = onSnapshot(
+      q,
       (querySnapshot) => {
         const productsData = [];
         querySnapshot.forEach((doc) => {
           productsData.push({ id: doc.id, ...doc.data() });
         });
-
-        // --- FILTER FOR STOCK ON THE CLIENT-SIDE ---
-        // This avoids the "illegal" composite query on stockQuantity
-        const inStockProducts = productsData.filter(
-          (product) => product.stockQuantity > 0
-        );
-
+        
+        // Client-side filtering for stock
+        const inStockProducts = productsData.filter(p => p.stockQuantity > 0);
+        
         setProducts(inStockProducts);
         setLoading(false);
-      }, 
+      },
       (err) => {
-        // Handle errors from Firestore
         console.error("Error fetching products: ", err);
-        setError(err.message + ". You may need to create a composite index in Firestore. Check the console for a link.");
+        setError(err); // This was line 67
         setLoading(false);
       }
     );
 
-    // Cleanup subscription on unmount
+    // Cleanup listener on component unmount
     return () => unsubscribe();
-
-  }, [categoryName, searchQuery]); // Re-run the effect if category or search changes
+  }, [category, searchQuery]); // Re-run effect when category or search changes
 
   return { products, loading, error };
 };
+
 
