@@ -2,41 +2,39 @@ rules_version = '2';
 service cloud.firestore {
 match /databases/{database}/documents {
 
-// Products: Public can read
+// Products: Everyone can read, only admins can write
 match /products/{productId} {
-  allow get, list: if true;
-  // Admin-only write rules
+  allow get, list: if true; 
   allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
 }
 
-// Categories: Public can read
+// Users: You can only read/write your own user document
+// Admins can read anyone's user document
+match /users/{userId} {
+  allow write: if request.auth != null && request.auth.uid == userId;
+  allow read: if request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+}
+
+// Categories: Everyone can read, only admins can write
 match /categories/{categoryId} {
   allow get, list: if true;
+  allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
 }
 
-// Users: You can only read/write your *own* user document
-match /users/{userId} {
-  allow read, write: if request.auth != null && request.auth.uid == userId;
-}
+// --- ORDERS RULES (THE REAL FIX) ---
 
-// --- ORDERS FIX ---
+// This single rule allows a user to query for their own orders
+// AND get a single order. It also allows an admin to do anything.
+match /orders/{document=**} {
+  allow read, create, update: if request.auth != null && 
+    (
+      // Rules for normal users
+      (request.resource.data.userId == request.auth.uid) || // Allow create
+      (resource.data.userId == request.auth.uid) || // Allow read (get/list)
 
-// Rule for single document access (Get, Create, Update)
-match /orders/{orderId} {
-  // A user can CREATE their own order
-  allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-  
-  // A user can GET their own order (for the new invoice page)
-  allow get: if request.auth != null && resource.data.userId == request.auth.uid;
-
-  // Admin can read/update any order
-  allow read, update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-}
-
-// Rule for collection access (List/Query)
-match /orders {
-  // A user can LIST (query) orders *only if* they are querying for their *own* userId
-  allow list: if request.auth != null && request.query.where.userId == request.auth.uid;
+      // Rules for Admins
+      (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
+    );
 }
 
 

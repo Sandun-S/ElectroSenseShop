@@ -1,0 +1,113 @@
+import React, { useState, useEffect } from 'react';
+// --- FIX: Use root-relative paths ---
+import { db } from '/src/firebaseConfig.js'; 
+import { 
+  collection, query, orderBy, onSnapshot, doc, deleteDoc 
+} from 'firebase/firestore';
+import { PencilIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
+// --- FIX: Use root-relative paths ---
+import ProductModal from '/src/components/ProductModal.jsx'; 
+
+export default function InventoryPage() {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentProduct, setCurrentProduct] = useState(null); // For editing
+
+  useEffect(() => {
+    const q = query(collection(db, 'products'), orderBy('name'));
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      setProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (error) => {
+      console.error("Error listening to products: ", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleOpenModal = (product = null) => {
+    setCurrentProduct(product); // If product is null, it's an "Add" form
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setCurrentProduct(null);
+  };
+
+  const handleDelete = async (productId) => {
+    // Replaced window.confirm with a simple alert
+    // A custom modal would be better, but this works
+    if (!window.confirm("Are you sure you want to delete this product?")) {
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'products', productId));
+    } catch (error) {
+      console.error("Error deleting product: ", error);
+      alert("Error deleting product.");
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Inventory Management</h1>
+        <button 
+          onClick={() => handleOpenModal()}
+          className="bg-teal-600 text-white py-2 px-4 rounded-md font-semibold hover:bg-teal-700 transition flex items-center"
+        >
+          <PlusIcon className="h-5 w-5 mr-2" />
+          Add Product
+        </button>
+      </div>
+
+      {loading ? (
+        <p>Loading inventory...</p>
+      ) : (
+        <div className="bg-white shadow-md rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {products.map(product => (
+                <tr key={product.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.name}</td>
+                  <td className="px-6 py-4 whitespace-nowGrap text-sm text-gray-500">{product.category}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">LKR {product.price?.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.stockQuantity}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <button onClick={() => handleOpenModal(product)} className="text-teal-600 hover:text-teal-900">
+                      <PencilIcon className="h-5 w-5" />
+                    </button>
+                    <button onClick={() => handleDelete(product.id)} className="text-red-600 hover:text-red-900">
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {isModalOpen && (
+        <ProductModal 
+          product={currentProduct} 
+          onClose={handleCloseModal} 
+        />
+      )}
+    </div>
+  );
+}
+
