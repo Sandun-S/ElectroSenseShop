@@ -12,6 +12,7 @@ import AuthPage from './pages/AuthPage';
 import MyAccountPage from './pages/MyAccountPage';
 import OrderDetailPage from './pages/OrderDetailPage'; // <-- NEW: Import the new page
 import { useCurrentUser } from './hooks/useCurrentUser';
+import AuthActionPage from './pages/AuthActionPage.jsx';
 
 export default function App() {
   // This hook ensures we don't render the app until Firebase auth is ready
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/order/:orderId" element={<OrderDetailPage />} /> {/* <-- NEW: Add the route */}
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/my-account" element={<MyAccountPage />} />
+          <Route path="/auth/action" element={<AuthActionPage />} />
         </Routes>
       </main>
       <Footer />
