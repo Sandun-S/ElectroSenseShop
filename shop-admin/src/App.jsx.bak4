@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-// --- FIX: Use root-relative paths for Vite ---
-import { db, auth } from '/src/firebaseConfig.js';
+import { db, auth } from './firebaseConfig.js';
 import { doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
-// --- Page & Layout Imports (using root-relative paths) ---
-import LoginPage from '/src/pages/LoginPage.jsx';
-import AdminLayout from '/src/components/AdminLayout.jsx';
-import ProtectedRoute from '/src/components/ProtectedRoute.jsx';
+// --- Our New Imports ---
+import LoginPage from './pages/LoginPage.jsx';
+import AdminLayout from './components/AdminLayout.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
+import AdminOrderDetailPage from './pages/AdminOrderDetailPage'; // <-- Import new page
 
-
+// ====================================================================
+// 0. Main App Component (Router)
+// ====================================================================
 export default function App() {
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -26,7 +28,6 @@ export default function App() {
           if (userDoc.exists() && userDoc.data().isAdmin === true) {
             setIsAdmin(true);
           } else {
-            // Not an admin, sign them out
             setIsAdmin(false);
             signOut(auth);
           }
@@ -54,14 +55,8 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Route 1: The login page.
-      */}
       <Route path="/login" element={<LoginPage />} />
-
-      {/* Route 2: All other routes ("/*") are protected.
-        We render AdminLayout, which will handle all the 
-        nested routes for the admin panel.
-      */}
+      <Route path="/orders/:orderId" element={<AdminOrderDetailPage />} />
       <Route 
         path="/*" 
         element={
@@ -73,4 +68,3 @@ export default function App() {
     </Routes>
   );
 }
-
