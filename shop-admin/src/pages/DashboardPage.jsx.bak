@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-// --- FIX: Use root-relative path to match project structure ---
-import { db } from '/src/firebaseConfig.js'; 
+import { Link } from 'react-router-dom';
+// Import db from the new firebaseConfig.js
+import { db } from '../firebaseConfig'; 
 import { 
   collection, doc, onSnapshot, updateDoc, 
-  query, orderBy, runTransaction, getDoc
-  // Removed 'addDoc' as it's no longer needed
+  query, orderBy, runTransaction
 } from 'firebase/firestore';
 
 export default function DashboardPage() {
@@ -12,9 +12,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Make sure db is initialized before querying
+    if (!db) {
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     
-    // onSnapshot listens for real-time updates
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       setOrders(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
@@ -23,16 +27,19 @@ export default function DashboardPage() {
       setLoading(false);
     });
 
-    return () => unsubscribe(); // Cleanup listener
-  }, []);
+    return () => unsubscribe(); 
+  }, []); // db is not in dependency array as it's stable after init
 
   const handleStatusChange = async (order, newStatus) => {
+    if (!db) {
+        console.error("Firestore (db) is not initialized.");
+        return;
+    }
     const orderRef = doc(db, 'orders', order.id);
     
-    // Check the current state
     const stockAlreadyUpdated = order.stockUpdated === true;
     const isNowReserving = (newStatus === 'Processing' || newStatus === 'Shipped' || newStatus === 'Completed');
-    const isNowCancelling = newStatus ==='Cancelled';
+    const isNowCancelling = newStatus === 'Cancelled';
 
     try {
       if (isNowReserving && !stockAlreadyUpdated) {
@@ -96,7 +103,7 @@ export default function DashboardPage() {
 
     } catch (error) {
       console.error("Transaction failed: ", error);
-      // Replaced alert() with console.error() as alert() is not supported
+      // Use console.error instead of alert
       console.error("Error updating status: " + error.message); 
     }
   };
@@ -107,11 +114,14 @@ export default function DashboardPage() {
       
       {loading ? (
         <p>Loading orders...</p>
+      ) : !db ? (
+         <p className="text-red-500">Firestore is not initialized. Please check configuration.</p>
       ) : (
         <div className="bg-white shadow-md rounded-lg overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
@@ -122,19 +132,29 @@ export default function DashboardPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {orders.map(order => (
                 <tr key={order.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <Link 
+                      to={`/orders/${order.id}`} 
+                      className="text-teal-600 hover:text-teal-900 hover:underline"
+                      title={order.id}
+                    >
+                      {order.id.substring(0, 8)}...
+                    </Link>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{order.userName}</div>
                     <div className="text-sm text-gray-500">{order.userEmail}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {order.createdAt?.toDate() ? new Date(order.createdAt.toDate()).toLocaleString() : 'No date'}
+                    {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleString() : 'No date'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrawrap text-sm font-medium">
                     LKR {order.total ? order.total.toFixed(2) : '0.00'}
-                  .</td>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                      order.status === 'Processing' ? 'bg-blue-100 text-blue-800' : // Added Processing
                       order.status === 'Shipped' ? 'bg-blue-100 text-blue-800' :
                       order.status === 'Completed' ? 'bg-green-100 text-green-800' :
                       order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
@@ -146,7 +166,6 @@ export default function DashboardPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <select 
                       value={order.status} 
-                      // --- Pass the *entire order object* to the handler ---
                       onChange={(e) => handleStatusChange(order, e.target.value)}
                       className="rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
                     >

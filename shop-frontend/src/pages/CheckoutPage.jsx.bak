@@ -1,18 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// --- FIX: Use root-relative paths for Vite ---
-import { db } from '/src/firebaseConfig.js';
-// --- 1. IMPORT TRANSACTION TOOLS ---
-import { 
-  collection, serverTimestamp, 
-  doc, runTransaction, getDoc 
-} from 'firebase/firestore';
-// --- FIX: Use root-relative paths for Vite ---
-import { useCartStore } from '/src/store.js';
-import { useCurrentUser } from '/src/hooks/useCurrentUser.js';
-
-// --- 2. NEW HELPER FUNCTION TO PAD ORDER NUMBER ---
-const padOrderNumber = (num, length = 4) => String(num).padStart(length, '0');
+import { db } from '../firebaseConfig.js';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; // Removed 'doc' and 'updateDoc'
+import { useCartStore } from '../store.js';
+import { useCurrentUser } from '../hooks/useCurrentUser.js';
 
 export default function CheckoutPage() {
   const { user, authLoading } = useCurrentUser();
@@ -20,21 +11,23 @@ export default function CheckoutPage() {
   const cart = useCartStore((state) => state.cart);
   const clearCart = useCartStore((state) => state.clearCart);
   
+  // Calculate total price reactively
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shippingFee = 500; 
+  const shippingFee = 500; // Example shipping fee
   const totalWithShipping = totalPrice + shippingFee;
 
   const [formData, setFormData] = useState({ name: '', address: '', phone: '' });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(''); 
+  const [error, setError] = useState(''); // State for user-facing errors
 
   useEffect(() => {
+    // Wait for auth to be ready
     if (!authLoading) {
       if (!user) {
+        // Redirect to login and tell it where to come back
         navigate('/auth', { state: { from: { pathname: '/checkout' } }, replace: true });
       } else {
-        // --- FIX: Pre-fill name from user's displayName (from auth) ---
-        // We will get the Firestore 'name' field during the transaction
+        // Pre-fill form if user has a name
         setFormData(prev => ({
           ...prev,
           name: user.displayName || '',
@@ -52,68 +45,33 @@ export default function CheckoutPage() {
     if (!user || cart.length === 0) return;
 
     setLoading(true);
-    setError(''); 
-    
+    setError(''); // Clear previous errors
     try {
-      // --- 3. RUN THE ENTIRE ORDER CREATION AS A TRANSACTION ---
-      const newOrderId = await runTransaction(db, async (transaction) => {
-        // a. Get the user's document
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await transaction.get(userDocRef);
-
-        if (!userDoc.exists()) {
-          throw new Error("User data not found. Cannot place order.");
-        }
-
-        // b. Get the customerID and current orderCount
-        const userData = userDoc.data();
-        const customerID = userData.customerID; // e.g., "00236"
-        const currentOrderCount = userData.orderCount; // e.g., 0
-
-        if (!customerID) {
-          throw new Error("Customer ID is missing. Cannot place order.");
-        }
-
-        // c. Calculate the new order ID
-        const newOrderCount = currentOrderCount + 1; // e.g., 1
-        const paddedOrderCount = padOrderNumber(newOrderCount); // e.g., "0001"
-        const finalOrderId = `${customerID}${paddedOrderCount}`; // e.g., "002360001"
-
-        // d. Define the new order document and its data
-        const newOrderRef = doc(db, 'orders', finalOrderId);
-        const orderData = {
-          userId: user.uid,
-          userName: formData.name, // The name from the form
-          userEmail: user.email,
-          address: formData.address,
-          phone: formData.phone,
-          items: cart,
-          total: totalWithShipping,
-          status: "Pending",
-          createdAt: serverTimestamp(),
-          // --- We can even store the customerID for easy reference ---
-          customerID: customerID 
-        };
-
-        // e. Update the user's orderCount
-        transaction.update(userDocRef, { orderCount: newOrderCount });
-        
-        // f. Create the new order with our custom ID
-        transaction.set(newOrderRef, orderData);
-
-        // g. Return the new ID
-        return finalOrderId;
+      // 1. Create the order document
+      const orderRef = await addDoc(collection(db, 'orders'), {
+        userId: user.uid,
+        userName: formData.name,
+        userEmail: user.email,
+        address: formData.address,
+        phone: formData.phone,
+        items: cart,
+        total: totalWithShipping,
+        status: "Pending",
+        createdAt: serverTimestamp()
       });
+
+      // --- FIX: Removed the stock update logic that caused the permission error ---
+      // The admin will update stock when processing the order.
       
-      // 4. Clear the cart
+      // 2. Clear the cart
       clearCart();
 
-      // 5. Redirect to success page, passing the new custom order ID
-      navigate('/order-success', { state: { orderId: newOrderId } });
+      // 3. Redirect to success page, passing the new order ID
+      navigate('/order-success', { state: { orderId: orderRef.id } });
 
     } catch (error) {
       console.error("Error placing order: ", error);
-      setError(error.message || "Failed to place order. Please try again.");
+      setError("Failed to place order. Please try again."); // Show a user-friendly error
     } finally {
       setLoading(false);
     }

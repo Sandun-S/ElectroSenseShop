@@ -5,14 +5,10 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signInWithPopup,
-  sendPasswordResetEmail 
+  sendPasswordResetEmail // <-- Import this
 } from 'firebase/auth';
 import { db } from '/src/firebaseConfig.js'; // Root-relative
-// --- 1. IMPORT TRANSACTION TOOLS ---
-import { 
-  doc, setDoc, getDoc, serverTimestamp, 
-  runTransaction 
-} from 'firebase/firestore'; // Removed 'increment' as we'll do it manually
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 // Helper function to translate Firebase errors
 function getFriendlyErrorMessage(code) {
@@ -24,50 +20,10 @@ function getFriendlyErrorMessage(code) {
       return 'An account with this email address already exists.';
     case 'auth/weak-password':
       return 'Your password must be at least 6 characters long.';
-    case 'auth/permission-denied': // --- ADDED THIS ---
-      return 'Permission denied. Make sure your Firestore rules are set correctly.';
     default:
       return 'An unexpected error occurred. Please try again.';
   }
 }
-
-// --- NEW FUNCTION TO GET A UNIQUE CUSTOMER ID ---
-// This function pads a number to 5 digits (e.g., 1 -> "00001")
-const padNumber = (num, length = 5) => String(num).padStart(length, '0');
-
-// This function safely increments a counter in Firestore and returns the new ID
-// --- NOTE: This function MUST be called *after* the user is authenticated ---
-async function getNextCustomerId() {
-  if (!db) throw new Error("Firestore (db) is not initialized.");
-  
-  const counterRef = doc(db, 'counters', 'userCounter');
-
-  try {
-    const newCustomerId = await runTransaction(db, async (transaction) => {
-      const counterDoc = await transaction.get(counterRef);
-      
-      let newCount;
-      if (!counterDoc.exists()) {
-        // If it's the first user, start at 1
-        newCount = 1;
-        transaction.set(counterRef, { currentId: newCount });
-      } else {
-        newCount = (counterDoc.data().currentId || 0) + 1;
-        transaction.update(counterRef, { currentId: newCount });
-      }
-      
-      return newCount;
-    });
-
-    return padNumber(newCustomerId);
-
-  } catch (error) {
-    console.error("Error getting next customer ID:", error);
-    // Re-throw with a specific message
-    throw new Error("Could not create a unique customer ID. (Did you update your firestore.rules?)");
-  }
-}
-
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -75,14 +31,17 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(''); // For success messages
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Get the redirect path from the URL, or default to /my-account
   const from = location.state?.from?.pathname || '/my-account';
 
+  // --- FIX: Redirect if already logged in ---
   useEffect(() => {
+    // If the user is already logged in, send them away from the auth page
     if (auth.currentUser) {
       navigate(from, { replace: true });
     }
@@ -99,31 +58,26 @@ export default function AuthPage() {
       if (isLogin) {
         // --- Sign In ---
         await signInWithEmailAndPassword(auth, email, password);
-        navigate(from, { replace: true }); 
+        navigate(from, { replace: true }); // Go to checkout or my-account
       } else {
         // --- Sign Up ---
-        
-        // --- FIX: STEP 1. AUTHENTICATE FIRST ---
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-
-        // --- FIX: STEP 2. NOW GET ID (as authenticated user) ---
-        const newCustomerId = await getNextCustomerId();
         
-        // --- FIX: STEP 3. CREATE USER DOC WITH NEW FIELDS ---
-        await setDoc(doc(db, 'users', user.uid), {
+        // Create user doc in Firestore
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
           name: name,
           email: email,
           createdAt: serverTimestamp(),
-          customerID: newCustomerId, // e.g., "00001"
-          role: "customer",      // Default role
-          orderCount: 0          // For Task 2
+          isAdmin: false // Default to not admin
         });
         
-        navigate(from, { replace: true }); 
+        // You could send a verification email here if you want
+        // await sendEmailVerification(userCredential.user);
+        
+        navigate(from, { replace: true }); // Go to checkout or my-account
       }
     } catch (err) {
-      setError(getFriendlyErrorMessage(err.code || err.message));
+      setError(getFriendlyErrorMessage(err.code));
     } finally {
       setLoading(false);
     }
@@ -135,37 +89,30 @@ export default function AuthPage() {
     setError('');
     setMessage('');
     try {
-      // --- FIX: STEP 1. AUTHENTICATE FIRST ---
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
+      // Check if user exists in Firestore, if not, create them
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
-        
-        // --- FIX: STEP 2. NOW GET ID (as authenticated user) ---
-        const newCustomerId = await getNextCustomerId();
-
-        // --- FIX: STEP 3. CREATE USER DOC WITH NEW FIELDS ---
         await setDoc(userDocRef, {
           name: user.displayName,
           email: user.email,
           createdAt: serverTimestamp(),
-          customerID: newCustomerId, // e.g., "00002"
-          role: "customer",      // Default role
-          orderCount: 0          // For Task 2
+          isAdmin: false
         });
       }
-      navigate(from, { replace: true }); 
+      navigate(from, { replace: true }); // Go to checkout or my-account
     } catch (err) {
-      setError(getFriendlyErrorMessage(err.code || err.message));
+      setError(getFriendlyErrorMessage(err.code));
     } finally {
       setLoading(false);
     }
   };
 
-  // --- PASSWORD RESET HANDLER ---
+  // --- NEW, FIXED PASSWORD RESET HANDLER ---
   const handlePasswordReset = (e) => {
     e.preventDefault();
     if (!email) {
@@ -174,20 +121,22 @@ export default function AuthPage() {
     }
     setLoading(true);
     setError('');
-    setMessage('Check your email for a reset link...'); 
+    setMessage('Check your email for a reset link...'); // Show pending message
 
     sendPasswordResetEmail(auth, email, {
+      // This URL MUST match the one in your Firebase Console
+      // It points to our new AuthActionPage
       url: 'https://shop.sandunsiwantha.com/auth/action', 
     })
       .then(() => {
         setLoading(false);
         setMessage("Password reset email sent! Please check your inbox.");
-        setError(''); 
+        setError(''); // Clear any previous errors
       })
       .catch((err) => {
         setLoading(false);
         setError(getFriendlyErrorMessage(err.code));
-        setMessage(''); 
+        setMessage(''); // Clear the pending message
       });
   };
 
@@ -220,7 +169,7 @@ export default function AuthPage() {
             name="email" 
             id="email" 
             value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
+            onChange={(e) => setEmail(e.target.value)}  // <-- THIS IS THE FIX
             required 
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500" 
           />
@@ -301,4 +250,3 @@ export default function AuthPage() {
     </div>
   );
 }
-

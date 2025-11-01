@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 // Import db using the absolute path
-import { db } from '/src/firebaseConfig.js'; 
+import { db } from '../firebaseConfig.js'; 
 import { 
   collection, doc, onSnapshot, updateDoc, 
-  query, orderBy, runTransaction
+  query, orderBy, runTransaction,
+  where // <-- 1. IMPORT 'where'
 } from 'firebase/firestore';
 
 export default function DashboardPage() {
@@ -17,13 +18,23 @@ export default function DashboardPage() {
       setLoading(false);
       return;
     }
-    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+    
+    // --- 2. THE NEW, SCALABLE QUERY ---
+    // This query fetches all orders NOT 'Completed' or 'Cancelled',
+    // and then orders them by the newest first.
+    const q = query(
+      collection(db, 'orders'), 
+      where('status', 'not-in', ['Completed', 'Cancelled']),
+      orderBy('createdAt', 'desc')
+    );
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       setOrders(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     }, (error) => {
       console.error("Error listening to orders: ", error);
+      // This is where the index error will appear
+      console.error("If you see a 'permission-denied' or 'failed-precondition' error, you likely need to create a Firestore index. See the console error message for a link to create it.");
       setLoading(false);
     });
 
@@ -31,6 +42,7 @@ export default function DashboardPage() {
   }, []); // db is not in dependency array as it's stable after init
 
   const handleStatusChange = async (order, newStatus) => {
+    // ... (This entire function remains unchanged, no need to copy)
     if (!db) {
         console.error("Firestore (db) is not initialized.");
         return;
@@ -121,10 +133,11 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Order Management</h1>
+      {/* --- 3. RENAMED TITLE --- */}
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Active Orders</h1>
       
       {loading ? (
-        <p>Loading orders...</p>
+        <p>Loading active orders...</p>
       ) : !db ? (
          <p className="text-red-500">Firestore is not initialized. Please check configuration.</p>
       ) : (
@@ -141,54 +154,63 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {orders.map(order => (
-                <tr key={order.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <Link 
-                      to={`/orders/${order.id}`} 
-                      className="text-teal-600 hover:text-teal-900 hover:underline"
-                      title={order.id}
-                    >
-                      {order.id.substring(0, 8)}...
-                    </Link>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{order.userName}</div>
-                    <div className="text-sm text-gray-500">{order.userEmail}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleString() : 'No date'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    LKR {order.total ? order.total.toFixed(2) : '0.00'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                      order.status === 'Processing' ? 'bg-blue-100 text-blue-800' : // Added Processing
-                      order.status === 'Shipped' ? 'bg-blue-100 text-blue-800' :
-                      order.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                      order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {order.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <select 
-                      value={order.status} 
-                      onChange={(e) => handleStatusChange(order, e.target.value)}
-                      className="rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
-                    >
-                      <option>Pending</option>
-                      <option>Processing</option>
-                      <option>Shipped</option>
-                      <option>Completed</option>
-                      <option>Cancelled</option>
-                    </select>
+              {/* --- 4. ADDED CHECK FOR EMPTY ORDERS --- */}
+              {orders.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                    No active orders found. (All 'Pending', 'Processing', and 'Shipped' orders will appear here.)
                   </td>
                 </tr>
-              ))}
+              ) : (
+                orders.map(order => (
+                  <tr key={order.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <Link 
+                        to={`/orders/${order.id}`} 
+                        className="text-teal-600 hover:text-teal-900 hover:underline"
+                        title={order.id}
+                      >
+                        {order.id.substring(0, 8)}...
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{order.userName}</div>
+                      <div className="text-sm text-gray-500">{order.userEmail}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleString() : 'No date'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      LKR {order.total ? order.total.toFixed(2) : '0.00'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                        order.status === 'Processing' ? 'bg-blue-100 text-blue-800' : 
+                        order.status === 'Shipped' ? 'bg-blue-100 text-blue-800' :
+                        order.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                        order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <select 
+                        value={order.status} 
+                        onChange={(e) => handleStatusChange(order, e.target.value)}
+                        className="rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                      >
+                        <option>Pending</option>
+                        <option>Processing</option>
+                        <option>Shipped</option>
+                        <option>Completed</option>
+                        <option>Cancelled</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
