@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useCartStore } from '../store.js';
+// --- FIX: Use root-relative path for Vite ---
+import { useCartStore } from '/src/store.js';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
 export default function CartPage() {
@@ -35,12 +36,18 @@ export default function CartPage() {
               <div key={item.id} className="flex flex-col sm:flex-row items-center justify-between border-b pb-6">
                 <div className="flex items-center space-x-4 mb-4 sm:mb-0">
                   <img 
-                    src={item.imageUrl || 'https://placehold.co/100x100/0d9488/white?text=Item'} 
+                    // --- FIX: Check for new imageUrls array first, then fallback to old imageUrl ---
+                    src={(item.imageUrls && Array.isArray(item.imageUrls) && item.imageUrls.length > 0) 
+                         ? item.imageUrls[0] 
+                         : item.imageUrl || 'https://placehold.co/100x100/0d9488/white?text=Item'}
                     alt={item.name}
                     className="w-20 h-20 rounded-md object-cover"
                   />
                   <div>
-                    <h2 className="text-lg font-semibold">{item.name}</h2>
+                    {/* --- FIX: Add Link to item page --- */}
+                    <Link to={`/products/${item.id}`} className="text-lg font-semibold hover:text-teal-600 transition-colors">
+                      {item.name}
+                    </Link>
                     <p className="text-gray-600">LKR {item.price.toFixed(2)}</p>
                   </div>
                 </div>
