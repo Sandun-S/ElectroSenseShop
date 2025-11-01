@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+match /databases/{database}/documents {
+
+// Products: Everyone can read, only admins can write
+match /products/{productId} {
+  allow get, list: if true; 
+  allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+}
+
+// Users: You can only read/write your own user document
+// Admins can read anyone's user document
+match /users/{userId} {
+  allow write: if request.auth != null && request.auth.uid == userId;
+  allow read: if request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+}
+
+// Categories: Everyone can read, only admins can write
+match /categories/{categoryId} {
+  allow get, list: if true;
+  allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+}
+
+// --- ORDERS RULES (THE REAL FIX) ---
+
+// This single rule allows a user to query for their own orders
+// AND get a single order. It also allows an admin to do anything.
+match /orders/{document=**} {
+  allow read, create, update: if request.auth != null && 
+    (
+      // Rules for normal users
+      (request.resource.data.userId == request.auth.uid) || // Allow create
+      (resource.data.userId == request.auth.uid) || // Allow read (get/list)
+
+      // Rules for Admins
+      (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
+    );
+}
+
+
+}
+}

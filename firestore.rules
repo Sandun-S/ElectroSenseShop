@@ -1,40 +1,57 @@
 rules_version = '2';
+
 service cloud.firestore {
 match /databases/{database}/documents {
 
-// Products: Everyone can read, only admins can write
-match /products/{productId} {
-  allow get, list: if true; 
-  allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+// Helper function to check if the user making the request is an admin
+function isAdmin() {
+  // Get the 'users' document for the user who is making this request
+  // and check if their 'role' field is 'admin'.
+  return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
 }
 
-// Users: You can only read/write your own user document
-// Admins can read anyone's user document
+// Helper function to check if the user is editing their own document
+function isSelf(userId) {
+  return request.auth.uid == userId;
+}
+
+// --- SECURE THE 'users' COLLECTION ---
 match /users/{userId} {
-  allow write: if request.auth != null && request.auth.uid == userId;
-  allow read: if request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+  // Allow reading the user list *only* if you are an admin
+  allow list: if isAdmin();
+  
+  // Allow reading a single user doc *only* if you are an admin OR you are that user
+  allow get: if isAdmin() || isSelf(userId);
+  
+  // Allow updating a user doc *only* if you are an admin (to change roles) OR you are that user
+  allow update: if isAdmin() || isSelf(userId);
+  
+  // Only logged-in users can create their own user document (on signup)
+  allow create: if isSelf(userId);
+  
+  // Admins can delete users
+  allow delete: if isAdmin();
 }
 
-// Categories: Everyone can read, only admins can write
+// --- SECURE OTHER COLLECTIONS (Example from your project) ---
+
+// Products are public to read, but only admins can change them
+match /products/{productId} {
+  allow get, list: if true;
+  allow create, update, delete: if isAdmin();
+}
+
+// Categories are public to read, but only admins can change them
 match /categories/{categoryId} {
   allow get, list: if true;
-  allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+  allow create, update, delete: if isAdmin();
 }
 
-// --- ORDERS RULES (THE REAL FIX) ---
-
-// This single rule allows a user to query for their own orders
-// AND get a single order. It also allows an admin to do anything.
-match /orders/{document=**} {
-  allow read, create, update: if request.auth != null && 
-    (
-      // Rules for normal users
-      (request.resource.data.userId == request.auth.uid) || // Allow create
-      (resource.data.userId == request.auth.uid) || // Allow read (get/list)
-
-      // Rules for Admins
-      (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
-    );
+// Orders can only be read/created by the user, and read/updated by an admin
+match /orders/{orderId} {
+  allow get, list: if request.auth.uid == resource.data.userId || isAdmin();
+  allow create: if request.auth.uid == request.resource.data.userId;
+  allow update: if isAdmin();
 }
 
 

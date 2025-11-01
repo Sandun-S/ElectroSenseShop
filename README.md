@@ -14,7 +14,17 @@ firebase target:apply hosting shop electrosense-shop
 firebase target:apply hosting admin electrosense-admin
 
 
+""
+https://heroicons.com/outline
+Take the kebab-case name.
+Convert it to PascalCase (capitalize every word, including the first, and remove the hyphens).
+Add the word Icon to the very end.
 
+Here are a few examples:
+cake
+PascalCase -> Cake
+Add Icon -> CakeIcon
+""
 
 
 

@@ -1,38 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-// --- FIX: Import all necessary icons and a fallback ---
-import { 
-  CpuChipIcon, 
-  TagIcon, 
-  SparklesIcon, 
-  InboxIcon, 
-  QuestionMarkCircleIcon,
-  CakeIcon // <-- ADD THIS ICON
-} from '@heroicons/react/24/outline';
-// --- FIX: Removed file extensions from local imports ---
-import ProductCard from '../components/ProductCard';
-import { useProducts } from '../hooks/useProducts'; 
-import { db } from '../firebaseConfig';
-// --- MODIFIED: Added query and orderBy ---
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-
-// --- NEW: Helper component to map icon string to actual component ---
-// This allows us to dynamically render icons based on the string from Firestore
-const DynamicHeroIcon = ({ iconName, className }) => {
-  const iconMap = {
-    'cpu-chip': CpuChipIcon,
-    'tag': TagIcon,
-    'sparkles': SparklesIcon,
-    'inbox': InboxIcon,
-    'cake': CakeIcon, // <-- ADD THIS LINE
-    // Add more icon string-to-component mappings here
-    // as you add more categories in your admin panel.
-  };
-
-  // Render the mapped icon, or a fallback '?' icon if not found
-  const IconComponent = iconMap[iconName] || QuestionMarkCircleIcon;
-  return <IconComponent className={className} />;
-};
+import { CpuChipIcon, TagIcon, SparklesIcon, InboxIcon } from '@heroicons/react/24/outline';
+// --- FIX: Added file extensions to imports ---
+import ProductCard from '../components/ProductCard.jsx';
+import { useProducts } from '../hooks/useProducts.js'; 
+import { db } from '../firebaseConfig.js';
+import { collection, getDocs } from 'firebase/firestore';
 
 export default function HomePage() {
   const [categories, setCategories] = useState([]);
@@ -45,43 +18,18 @@ export default function HomePage() {
   });
 
   useEffect(() => {
-    // --- MODIFIED: Fetch categories from Firestore ---
-    const fetchCategories = async () => {
-      try {
-        // Query the 'categories' collection, order by name
-        const q = query(collection(db, 'categories'), orderBy('name'));
-        const querySnapshot = await getDocs(q);
-
-        // Map Firestore documents to the format our component needs
-        const dbCategories = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            name: data.name,
-            icon: data.icon, // This is the string, e.g., "cpu-chip"
-            link: `/products?category=${data.name}` // Use name for the query param
-          };
-        });
-
-        // --- NEW: Manually add the "All Products" category ---
-        const allProductsCategory = {
-          name: 'All Products',
-          icon: 'inbox', // The string key for the 'InboxIcon'
-          link: '/products'
-        };
-
-        // Set the state with categories from DB + "All Products"
-        setCategories([...dbCategories, allProductsCategory]);
-
-      } catch (err) {
-        console.error("Error fetching categories:", err);
-        // Optionally set an error state here
-      }
-    };
-
-    fetchCategories();
+    // This logic for categories is fine, it can stay.
+    // You can replace this with a real Firestore fetch later.
+    setCategories([
+      { name: 'Microcontrollers', icon: CpuChipIcon, link: '/products?category=Microcontrollers' },
+      { name: 'Sensors', icon: TagIcon, link: '/products?category=Sensors' },
+      { name: 'Components', icon: SparklesIcon, link: '/products?category=Components' },
+      { name: 'All Products', icon: InboxIcon, link: '/products' },
+    ]);
     
-    // The product fetching is handled by our useProducts hook.
-  }, []); // Empty dependency array ensures this runs once on mount
+    // The product fetching is now handled by our useProducts hook,
+    // so the old fetchFeatured function is no longer needed here.
+  }, []);
 
   return (
     <div className="space-y-12">
@@ -105,8 +53,7 @@ export default function HomePage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {categories.map((cat) => (
             <Link key={cat.name} to={cat.link} className="group block p-6 bg-white rounded-lg shadow-md text-center hover:shadow-xl hover:scale-105 transition">
-              {/* --- MODIFIED: Use the DynamicHeroIcon component --- */}
-              <DynamicHeroIcon iconName={cat.icon} className="h-12 w-12 text-teal-600 mx-auto mb-4" />
+              <cat.icon className="h-12 w-12 text-teal-600 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-700 group-hover:text-teal-600">{cat.name}</h3>
             </Link>
           ))}
@@ -142,4 +89,5 @@ export default function HomePage() {
     </div>
   );
 }
+
 

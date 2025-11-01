@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
-// --- FIX: Use relative paths ---
-import { db } from '../firebaseConfig.js';
+// --- FIX: Remove file extensions from imports for Vite/esbuild ---
+import { db } from '../firebaseConfig';
 import { 
   collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc 
 } from 'firebase/firestore';
 import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
-// --- FIX: Use relative paths ---
-import ConfirmModal from '../components/ConfirmModal.jsx';
+// --- FIX: Remove file extensions from imports for Vite/esbuild ---
+import ConfirmModal from '../components/ConfirmModal';
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [categoryName, setCategoryName] = useState('');
   const [skuPrefix, setSkuPrefix] = useState('');
+  const [icon, setIcon] = useState(''); // --- NEW: State for icon ---
   const [editingId, setEditingId] = useState(null);
 
   // --- FIX: State for confirm modal ---
@@ -34,8 +35,9 @@ export default function CategoriesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!categoryName || !skuPrefix) {
-      console.error("Please fill in both fields."); // Use console.error
+    // --- MODIFIED: Add icon to validation ---
+    if (!categoryName || !skuPrefix || !icon) {
+      console.error("Please fill in all fields."); // Use console.error
       return;
     }
 
@@ -43,20 +45,25 @@ export default function CategoriesPage() {
       if (editingId) {
         // Update existing category
         const categoryRef = doc(db, 'categories', editingId);
+        // --- MODIFIED: Add icon to update ---
         await updateDoc(categoryRef, {
           name: categoryName,
-          skuPrefix: skuPrefix.toUpperCase()
+          skuPrefix: skuPrefix.toUpperCase(),
+          icon: icon
         });
       } else {
         // Add new category
+        // --- MODIFIED: Add icon to addDoc ---
         await addDoc(collection(db, 'categories'), {
           name: categoryName,
-          skuPrefix: skuPrefix.toUpperCase()
+          skuPrefix: skuPrefix.toUpperCase(),
+          icon: icon
         });
       }
       // Reset form
       setCategoryName('');
       setSkuPrefix('');
+      setIcon(''); // --- NEW: Reset icon state ---
       setEditingId(null);
     } catch (error) {
       console.error("Error saving category: ", error);
@@ -66,6 +73,7 @@ export default function CategoriesPage() {
   const handleEdit = (category) => {
     setCategoryName(category.name);
     setSkuPrefix(category.skuPrefix);
+    setIcon(category.icon || ''); // --- NEW: Set icon on edit ---
     setEditingId(category.id);
   };
 
@@ -96,7 +104,8 @@ export default function CategoriesPage() {
       
       {/* Add/Edit Form */}
       <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        {/* --- MODIFIED: Changed to md:grid-cols-4 --- */}
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           <div className="md:col-span-1">
             <label htmlFor="categoryName" className="block text-sm font-medium text-gray-700">Category Name</label>
             <input
@@ -122,6 +131,21 @@ export default function CategoriesPage() {
               required
             />
           </div>
+          
+          {/* --- NEW: Icon Input Field --- */}
+          <div className="md:col-span-1">
+            <label htmlFor="icon" className="block text-sm font-medium text-gray-700">Icon Name (Heroicon)</label>
+            <input
+              type="text"
+              id="icon"
+              value={icon}
+              onChange={(e) => setIcon(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+              placeholder="e.g., cpu-chip"
+              required
+            />
+          </div>
+
           <div className="md:col-span-1 flex space-x-2">
             <button
               type="submit"
@@ -132,7 +156,8 @@ export default function CategoriesPage() {
             {editingId && (
               <button
                 type="button"
-                onClick={() => { setEditingId(null); setCategoryName(''); setSkuPrefix(''); }}
+                // --- MODIFIED: Add setIcon to reset ---
+                onClick={() => { setEditingId(null); setCategoryName(''); setSkuPrefix(''); setIcon(''); }}
                 className="w-full bg-gray-500 text-white py-2 px-4 rounded-md font-semibold hover:bg-gray-600 transition"
               >
                 Cancel
@@ -152,6 +177,7 @@ export default function CategoriesPage() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU Prefix</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Icon</th> {/* --- NEW: Table Header --- */}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
@@ -160,6 +186,8 @@ export default function CategoriesPage() {
                 <tr key={cat.id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cat.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{cat.skuPrefix}</td>
+                  {/* --- NEW: Table Data Cell --- */}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{cat.icon}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                     <button onClick={() => handleEdit(cat)} className="text-teal-600 hover:text-teal-900">
                       <PencilIcon className="h-5 w-5" />

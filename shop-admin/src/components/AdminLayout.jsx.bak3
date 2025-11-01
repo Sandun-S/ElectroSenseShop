@@ -1,36 +1,28 @@
 import React from 'react';
-import { Routes, Route, Link, useNavigate, useLocation, NavLink } from 'react-router-dom';
-// --- FIX: Use absolute /src path ---
+import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+// --- FIX: Use root-relative paths ---
+// --- FIX: Correct path. firebaseConfig.js is at the root, not in /src ---
 import { auth } from '/src/firebaseConfig.js';
 import { signOut } from 'firebase/auth';
 import { 
   InboxStackIcon, 
   CreditCardIcon, 
   ArrowLeftOnRectangleIcon,
-  TagIcon,
-  UserGroupIcon // <-- 1. IMPORT NEW ICON
+  TagIcon // <-- 1. IMPORT NEW ICON
 } from '@heroicons/react/24/outline';
-
-// --- FIX: Use absolute /src paths ---
+// --- FIX: Use root-relative paths ---
 import DashboardPage from '/src/pages/DashboardPage.jsx';
 import InventoryPage from '/src/pages/InventoryPage.jsx';
-import CategoriesPage from '/src/pages/CategoriesPage.jsx';
-import AdminOrderDetailPage from '/src/pages/AdminOrderDetailPage.jsx';
-// --- 2. IMPORT NEW PAGES ---
-import UserManagementPage from '/src/pages/UserManagementPage.jsx';
-import UserDetailPage from '/src/pages/UserDetailPage.jsx';
+import CategoriesPage from '/src/pages/CategoriesPage.jsx'; // <-- 2. IMPORT CATEGORIES PAGE
+// --- ADD: Import for Order Detail Page ---
+import AdminOrderDetailPage from '/src/pages/AdminOrderDetailPage.jsx'; 
 
 export default function AdminLayout() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { pathname } = location;
-
   const handleLogout = async () => {
     await signOut(auth);
     navigate('/login');
   };
-
-  const baseLinkClass = 'flex items-center px-4 py-2 rounded-md';
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -40,59 +32,19 @@ export default function AdminLayout() {
           ElectroSense
         </div>
         <nav className="flex-1 px-2 py-4 space-y-2">
-          {/* Orders Link */}
-          <NavLink 
-            to="/"
-            end
-            className={({ isActive }) => 
-              `${baseLinkClass} ${
-                (isActive || pathname.startsWith('/orders/')) 
-                  ? 'bg-teal-700' 
-                  : 'hover:bg-teal-700'
-              }`
-            }
-          >
+          <Link to="/" className="flex items-center px-4 py-2 rounded-md hover:bg-teal-700">
             <CreditCardIcon className="h-5 w-5 mr-3" />
             Orders
-          </NavLink>
-          
-          {/* Inventory Link */}
-          <NavLink 
-            to="/inventory" 
-            className={({ isActive }) => 
-              `${baseLinkClass} ${isActive ? 'bg-teal-700' : 'hover:bg-teal-700'}`
-            }
-          >
+          </Link>
+          <Link to="/inventory" className="flex items-center px-4 py-2 rounded-md hover:bg-teal-700">
             <InboxStackIcon className="h-5 w-5 mr-3" />
             Inventory
-          </NavLink>
-          
-          {/* Categories Link */}
-          <NavLink 
-            to="/categories" 
-            className={({ isActive }) => 
-              `${baseLinkClass} ${isActive ? 'bg-teal-700' : 'hover:bg-teal-700'}`
-            }
-          >
+          </Link>
+          {/* --- 3. ADD CATEGORIES LINK --- */}
+          <Link to="/categories" className="flex items-center px-4 py-2 rounded-md hover:bg-teal-700">
             <TagIcon className="h-5 w-5 mr-3" />
             Categories
-          </NavLink>
-
-          {/* --- 3. ADD USER MANAGEMENT LINK --- */}
-          <NavLink 
-            to="/users" 
-            className={({ isActive }) => 
-              `${baseLinkClass} ${
-                (isActive || pathname.startsWith('/users/'))
-                  ? 'bg-teal-700' 
-                  : 'hover:bg-teal-700'
-              }`
-            }
-          >
-            <UserGroupIcon className="h-5 w-5 mr-3" />
-            Users
-          </NavLink>
-
+          </Link>
         </nav>
       </aside>
 
@@ -111,12 +63,10 @@ export default function AdminLayout() {
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/inventory" element={<InventoryPage />} />
+            {/* --- 4. ADD CATEGORIES ROUTE --- */}
             <Route path="/categories" element={<CategoriesPage />} />
+            {/* --- 5. ADD ORDER DETAIL ROUTE --- */}
             <Route path="/orders/:orderId" element={<AdminOrderDetailPage />} />
-            
-            {/* --- 4. ADD NEW ROUTES --- */}
-            <Route path="/users" element={<UserManagementPage />} />
-            <Route path="/users/:userId" element={<UserDetailPage />} />
             
             {/* Fallback for 404 */}
             <Route path="*" element={

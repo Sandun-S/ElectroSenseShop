@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-// --- FIX: Use root-relative paths for Vite ---
-import { db, auth } from '/src/firebaseConfig.js';
+// --- FIX: Use relative paths from App.jsx (which is in src) ---
+import { db, auth } from './firebaseConfig.js';
 import { doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
-// --- Page & Layout Imports (using root-relative paths) ---
-import LoginPage from '/src/pages/LoginPage.jsx';
-import AdminLayout from '/src/components/AdminLayout.jsx';
-import ProtectedRoute from '/src/components/ProtectedRoute.jsx';
+// --- Page & Layout Imports (using relative paths) ---
+import LoginPage from './pages/LoginPage.jsx';
+import AdminLayout from './components/AdminLayout.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 
 export default function App() {
@@ -23,7 +23,9 @@ export default function App() {
         try {
           const userDocRef = doc(db, 'users', currentUser.uid);
           const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists() && userDoc.data().isAdmin === true) {
+          
+          // --- FIX: Check for 'role' instead of 'isAdmin' ---
+          if (userDoc.exists() && userDoc.data().role === 'admin') {
             setIsAdmin(true);
           } else {
             // Not an admin, sign them out
