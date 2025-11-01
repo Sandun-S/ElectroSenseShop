@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
-// --- FIX: Use root-relative paths ---
-import { db } from '/src/firebaseConfig.js';
-import { useCartStore } from '/src/store.js';
+// --- FIX: Use relative paths ---
+import { db } from '../firebaseConfig.js';
+import { useCartStore } from '../store.js';
 import { PlusIcon, MinusIcon, ShoppingBagIcon, BoltIcon } from '@heroicons/react/24/outline';
 
 export default function ItemDetailPage() {
@@ -14,15 +14,17 @@ export default function ItemDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
   
-  // --- NEW: Get navigation for 'Buy Now' ---
+  // --- NEW: State to track the main image ---
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
   const navigate = useNavigate();
-  
   const addToCart = useCartStore((state) => state.addToCart);
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
         setLoading(true);
+        setActiveImageIndex(0); // Reset image index on product change
         const docRef = doc(db, 'products', productId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -39,7 +41,6 @@ export default function ItemDetailPage() {
     fetchProduct();
   }, [productId]);
 
-  // --- NEW: Quantity control functions ---
   const handleIncrement = () => {
     if (product && quantity < product.stockQuantity) {
       setQuantity(quantity + 1);
@@ -58,15 +59,13 @@ export default function ItemDetailPage() {
 
   const handleBuyNow = () => {
     addToCart(product, quantity);
-    navigate('/checkout'); // Assumes your checkout page is at /checkout
+    navigate('/checkout');
   };
   
   const renderSpecs = () => {
-    // --- FIX: Add a check for product.specsDescription ---
     if (!product || !product.specsDescription) {
       return <p className="text-gray-500">No specifications provided.</p>;
     }
-    // Splits the string by new lines and creates a list
     return (
       <ul className="space-y-2">
         {product.specsDescription.split('\n').map((line, index) => (
@@ -79,6 +78,21 @@ export default function ItemDetailPage() {
     );
   };
 
+  // --- NEW: Helper logic to get all available images ---
+  // It handles both new `imageUrls` (array) and old `imageUrl` (string)
+  const getDisplayImages = () => {
+    if (product && product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+      // Use the new array, filtering out any empty strings
+      return product.imageUrls.filter(url => url && typeof url === 'string' && url.trim() !== '');
+    }
+    if (product && product.imageUrl && typeof product.imageUrl === 'string' && product.imageUrl.trim() !== '') {
+      // Fallback to the old single image string, return as an array
+      return [product.imageUrl];
+    }
+    // Return a placeholder if no images are found
+    return [`https://placehold.co/600x600/0d9488/white?text=${product ? product.name : 'Image'}`];
+  };
+  
   if (loading) return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center py-10">
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -94,19 +108,49 @@ export default function ItemDetailPage() {
   );
   
   const isOutOfStock = !product.stockQuantity || product.stockQuantity === 0;
+  const displayImages = getDisplayImages(); // Get the list of images
 
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="bg-white p-8 rounded-lg shadow-xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Product Image */}
+          
+          {/* --- NEW: Image Gallery --- */}
           <div>
-            <img 
-              src={product.imageUrl || `https://placehold.co/600x600/0d9488/white?text=${product.name}`} 
-              alt={product.name}
-              className="w-full h-auto max-h-[500px] object-contain rounded-lg"
-            />
+            {/* Main Image */}
+            <div className="w-full h-auto max-h-[500px] flex items-center justify-center border border-gray-200 rounded-lg overflow-hidden p-4 shadow-inner bg-gray-50">
+              <img 
+                src={displayImages[activeImageIndex]} 
+                alt={product.name}
+                className="w-full h-auto max-h-[450px] object-contain rounded-lg"
+              />
+            </div>
+            
+            {/* Thumbnail Gallery */}
+            {displayImages.length > 1 && (
+              <div className="flex space-x-2 overflow-x-auto mt-4 p-2">
+                {displayImages.map((imgUrl, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setActiveImageIndex(index)}
+                    className={`flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 transition-all duration-200 ${
+                      index === activeImageIndex
+                        ? 'border-teal-600 opacity-100 ring-2 ring-teal-300'
+                        : 'border-gray-200 opacity-60 hover:opacity-100 hover:border-gray-400'
+                    }`}
+                  >
+                    <img 
+                      src={imgUrl} 
+                      alt={`Thumbnail ${index + 1}`} 
+                      className="w-full h-full object-cover" 
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+          {/* --- END: Image Gallery --- */}
+          
           
           {/* Product Details */}
           <div className="flex flex-col">
@@ -121,7 +165,6 @@ export default function ItemDetailPage() {
               {isOutOfStock ? 'Out of Stock' : `${product.stockQuantity} in stock`}
             </span>
             
-            {/* --- NEW: Quantity Selector --- */}
             {!isOutOfStock && (
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
@@ -145,7 +188,6 @@ export default function ItemDetailPage() {
               </div>
             )}
             
-            {/* --- NEW: Action Buttons --- */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <button
                 onClick={handleAddToCart}
@@ -165,26 +207,21 @@ export default function ItemDetailPage() {
               </button>
             </div>
             
-            {/* --- NEW: Meta Info --- */}
             <div className="space-y-2 text-sm text-gray-600">
               {product.sku && (
                 <p><strong>SKU:</strong> {product.sku}</p>
               )}
               {product.category && (
                 <p><strong>Category:</strong> 
-                  {/* --- FIX: Removed .toLowerCase() --- */}
                   <Link to={`/products?category=${product.category}`} className="text-teal-600 hover:underline ml-1">
                     {product.category}
                   </Link>
                 </p>
               )}
-              {/* --- THIS IS THE FIX --- */}
-              {/* Check if product.tags exists AND is an Array before trying to map */}
               {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (
                 <p><strong>Tags:</strong> 
                   {product.tags.map((tag, i) => (
                     <span key={i} className="ml-1 after:content-[','] last:after:content['']">
-                      {/* --- FIX: Removed .toLowerCase() --- */}
                       <Link to={`/products?tag=${tag}`} className="text-teal-600 hover:underline">
                         {tag}
                       </Link>
@@ -197,7 +234,6 @@ export default function ItemDetailPage() {
           </div>
         </div>
         
-        {/* --- NEW: Description & Specs Tabs --- */}
         <div className="mt-12">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8 overflow-x-auto" aria-label="Tabs">
@@ -227,6 +263,7 @@ export default function ItemDetailPage() {
           <div className="py-6">
             {activeTab === 'description' && (
               <div className="prose prose-lg max-w-none text-gray-700">
+                {/* Use pre-line to respect newlines in the description */}
                 <p style={{ whiteSpace: 'pre-line' }}>
                   {product.description || 'No description provided.'}
                 </p>

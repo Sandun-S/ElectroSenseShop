@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-// --- FIX: Use root-relative (absolute) path ---
-import { useCartStore } from '/src/store.js'; 
+import { useCartStore } from '../store.js';
 import { ShoppingCartIcon } from '@heroicons/react/24/outline';
 
 export default function ProductCard({ product }) {
@@ -13,25 +12,13 @@ export default function ProductCard({ product }) {
     addToCart(product);
   };
 
-  // --- NEW: Image Logic ---
-  // Get the first image from the new 'imageUrls' array,
-  // or fall back to the old 'imageUrl' string.
-  const displayImage = (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0)
-    ? product.imageUrls[0]
-    : product.imageUrl;
-  
-  const placeholderImage = `https://placehold.co/400x400/0d9488/white?text=${encodeURIComponent(product.name)}`;
-
   return (
     <Link to={`/products/${product.id}`} className="group bg-white rounded-lg shadow-md overflow-hidden flex flex-col hover:shadow-xl transition">
       <div className="h-48 overflow-hidden relative">
         <img 
-          // --- UPDATED: Use the new image logic ---
-          src={displayImage || placeholderImage} 
+          src={product.imageUrl || `https://placehold.co/400x400/0d9488/white?text=${product.name}`} 
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          // Add an error handler for broken image links
-          onError={(e) => { e.currentTarget.src = placeholderImage; }}
         />
       </div>
       <div className="p-4 flex flex-col flex-grow">

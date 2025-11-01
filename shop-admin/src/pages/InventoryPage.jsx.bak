@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-// --- FIX: Use root-relative paths ---
-import { db } from '/src/firebaseConfig.js'; 
+// --- FIX: Use relative paths ---
+import { db } from '../firebaseConfig.js'; 
 import { 
   collection, query, orderBy, onSnapshot, doc, deleteDoc 
 } from 'firebase/firestore';
 import { PencilIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
-// --- FIX: Use root-relative paths ---
-import ProductModal from '/src/components/ProductModal.jsx'; 
-import ConfirmModal from '/src/components/ConfirmModal.jsx';
+// --- FIX: Use relative paths ---
+import ProductModal from '../components/ProductModal.jsx'; 
+// --- NEW: Import the modal ---
+import ConfirmModal from '../components/ConfirmModal.jsx';
 
 export default function InventoryPage() {
   const [products, setProducts] = useState([]);
@@ -97,7 +98,7 @@ export default function InventoryPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {products.map(product => (
                 <tr key={product.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.name}</td>
+                  <td className="px-6 py-4 whitespace-nowJrap text-sm font-medium text-gray-900">{product.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.category}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">LKR {product.price?.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.stockQuantity}</td>

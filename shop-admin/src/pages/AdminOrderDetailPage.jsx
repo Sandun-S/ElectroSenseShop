@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-// --- FIX: Use relative path from 'pages' folder ---
-import { db } from '../firebaseConfig.js';
+// --- FIX: Use absolute path from project root ---
+import { db } from '/src/firebaseConfig.js';
 import { 
   doc, onSnapshot, updateDoc, 
   runTransaction, getDoc
@@ -16,6 +16,13 @@ export default function AdminOrderDetailPage() {
   useEffect(() => {
     if (!orderId) {
       setError("No order ID provided.");
+      setLoading(false);
+      return;
+    }
+
+    // Check if db is initialized
+    if (!db) {
+      setError("Firestore (db) is not initialized.");
       setLoading(false);
       return;
     }
@@ -42,12 +49,12 @@ export default function AdminOrderDetailPage() {
     // Clean up the listener
     return () => unsubscribe();
     
-  }, [orderId]);
+  }, [orderId]); // db is stable, no need to include
 
-  // --- COPIED FROM DASHBOARD: Logic to handle status change ---
+  // --- COPIED FROM DASHBOARD: Logic to handle status change (FIXED) ---
   const handleStatusChange = async (order, newStatus) => {
     // Prevent changing if status is already set
-    if (order.status === newStatus) return;
+    if (order.status === newStatus || !db) return;
 
     const orderRef = doc(db, 'orders', order.id);
     
@@ -76,17 +83,31 @@ export default function AdminOrderDetailPage() {
         console.log("Successfully reserved stock and updated order!");
         
       } else if (isNowCancelling && stockAlreadyUpdated) {
-        // --- ACTION: REVERT STOCK ---
+        // --- ACTION: REVERT STOCK (FIXED LOGIC) ---
         await runTransaction(db, async (transaction) => {
+          
+          // --- 1. READ ALL PRODUCT DOCS FIRST ---
+          const productUpdates = [];
           for (const item of order.items) {
             const productRef = doc(db, 'products', item.id);
-            const productDoc = await transaction.get(productRef);
+            const productDoc = await transaction.get(productRef); // <-- READ
+
             if (productDoc.exists()) {
               const newStock = productDoc.data().stockQuantity + item.quantity;
-              transaction.update(productRef, { stockQuantity: newStock });
+              productUpdates.push({ ref: productRef, newStock: newStock }); // <-- Plan write
             }
           }
-          transaction.update(orderRef, { status: newStatus, stockUpdated: false });
+          
+          // --- 2. NOW, PERFORM ALL WRITES ---
+          for (const update of productUpdates) {
+            transaction.update(update.ref, { stockQuantity: update.newStock }); // <-- WRITE
+          }
+          
+          // --- 3. FINALLY, UPDATE THE ORDER ---
+          transaction.update(orderRef, { // <-- WRITE
+            status: newStatus, 
+            stockUpdated: false 
+          });
         });
         console.log("Successfully cancelled order and reverted stock!");
 

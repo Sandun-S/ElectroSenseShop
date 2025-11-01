@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-// Import db using the absolute path
-import { db } from '/src/firebaseConfig.js'; 
+// Import db from the new firebaseConfig.js
+import { db } from '../firebaseConfig'; 
 import { 
   collection, doc, onSnapshot, updateDoc, 
   query, orderBy, runTransaction
@@ -76,30 +76,19 @@ export default function DashboardPage() {
         console.log("Successfully reserved stock and updated order!");
         
       } else if (isNowCancelling && stockAlreadyUpdated) {
-        // --- ACTION: REVERT STOCK (FIXED LOGIC) ---
+        // --- ACTION: REVERT STOCK ---
         await runTransaction(db, async (transaction) => {
-          
-          // --- 1. READ ALL PRODUCT DOCS FIRST ---
-          const productUpdates = []; // To store our planned updates
           for (const item of order.items) {
             const productRef = doc(db, 'products', item.id);
-            const productDoc = await transaction.get(productRef); // <-- READ
+            const productDoc = await transaction.get(productRef);
 
             if (productDoc.exists()) {
               const newStock = productDoc.data().stockQuantity + item.quantity;
-              // Store the ref and the new value to update later
-              productUpdates.push({ ref: productRef, newStock: newStock });
+              transaction.update(productRef, { stockQuantity: newStock });
             }
-            // If productDoc doesn't exist, we just skip it.
           }
           
-          // --- 2. NOW, PERFORM ALL WRITES ---
-          for (const update of productUpdates) {
-            transaction.update(update.ref, { stockQuantity: update.newStock }); // <-- WRITE
-          }
-          
-          // --- 3. FINALLY, UPDATE THE ORDER ---
-          transaction.update(orderRef, { // <-- WRITE
+          transaction.update(orderRef, { 
             status: newStatus,
             stockUpdated: false 
           });
@@ -159,7 +148,7 @@ export default function DashboardPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleString() : 'No date'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrawrap text-sm font-medium">
                     LKR {order.total ? order.total.toFixed(2) : '0.00'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
