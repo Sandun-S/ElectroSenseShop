@@ -1,26 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom'; // <-- Import Link
-// --- FIX: Use root-relative path ---
-import { db } from '/src/firebaseConfig.js'; 
+import { db } from '/src/firebaseConfig.js'; // <-- Root-relative path
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-// --- FIX: Use root-relative path ---
-import { useCurrentUser } from '/src/hooks/useCurrentUser.js'; 
+import { useCurrentUser } from '/src/hooks/useCurrentUser.js'; // <-- Root-relative path
 
 export default function MyAccountPage() {
-  // --- 1. GET ALL DATA FROM THE UPGRADED HOOK ---
-  const { user, firestoreUser, authLoading } = useCurrentUser();
-  
-  // --- 2. RENAME STATE TO BE SPECIFIC TO ORDERS ---
+  const { user } = useCurrentUser();
   const [orders, setOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Only fetch orders if the user is logged in
     if (user) {
       const fetchOrders = async () => {
         try {
-          setLoadingOrders(true); // Use new state
+          setLoading(true);
           setError(null);
           const q = query(
             collection(db, 'orders'),
@@ -33,26 +27,14 @@ export default function MyAccountPage() {
           console.error("Error fetching orders: ", err);
           setError(err.message); // Set the error
         } finally {
-          setLoadingOrders(false); // Use new state
+          setLoading(false);
         }
       };
       fetchOrders();
     }
-  }, [user]); // Re-run when user object is available
+  }, [user]);
   
-  // --- 3. NEW AUTH LOADING CHECK ---
-  // Show a top-level spinner while auth is still loading
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-600"></div>
-      </div>
-    );
-  }
-
-  // --- 4. UPDATED LOGGED-OUT CHECK ---
-  // If auth is done loading AND there is no user
-  if (!authLoading && !user) {
+  if (!user) {
     return (
       <div className="text-center">
         <p>Please <Link to="/auth" className="text-teal-600 underline">login</Link> to see your account.</p>
@@ -62,42 +44,12 @@ export default function MyAccountPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* --- 5. UPDATED WELCOME MESSAGE --- */}
       <h1 className="text-3xl font-bold text-gray-900 mb-6">My Account</h1>
-      <p className="text-xl text-gray-700 mb-8">Welcome back, <span className="font-semibold">{firestoreUser?.name || user?.email}</span>!</p>
+      <p className="text-xl text-gray-700 mb-8">Welcome back, <span className="font-semibold">{user.displayName || user.email}</span>!</p>
       
-      {/* --- 6. NEW "MY DETAILS" SECTION --- */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-2xl font-semibold mb-6">My Details</h2>
-        {firestoreUser ? (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-500">Full Name</label>
-              <p className="text-lg text-gray-900">{firestoreUser.name || 'Not provided'}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-500">Email</label>
-              <p className="text-lg text-gray-900">{firestoreUser.email}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-500">Phone</label>
-              <p className="text-lg text-gray-900">{firestoreUser.phone || 'Not provided'}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-500">Address</label>
-              <p className="text-lg text-gray-900 whitespace-pre-wrap">{firestoreUser.address || 'Not provided'}</p>
-            </div>
-          </div>
-        ) : (
-          // This shows if auth is loaded but firestoreUser is still fetching
-          <p>Loading your details...</p> 
-        )}
-      </div>
-
-      {/* --- 7. EXISTING "MY ORDER HISTORY" SECTION --- */}
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h2 className="text-2xl font-semibold mb-6">My Order History</h2>
-        {loadingOrders && <p>Loading orders...</p>}
+        {loading && <p>Loading orders...</p>}
         
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded" role="alert">
@@ -106,13 +58,14 @@ export default function MyAccountPage() {
           </div>
         )}
 
-        {!loadingOrders && !error && orders.length === 0 && (
+        {!loading && !error && orders.length === 0 && (
           <p>You haven't placed any orders yet.</p>
         )}
 
-        {!loadingOrders && !error && orders.length > 0 && (
+        {!loading && !error && orders.length > 0 && (
           <div className="space-y-4">
             {orders.map(order => (
+              // --- UPDATE: Wrap in a Link component ---
               <Link 
                 to={`/order/${order.id}`} // <-- Link to order detail page
                 key={order.id} 

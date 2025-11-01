@@ -15,8 +15,7 @@ import { useCurrentUser } from '/src/hooks/useCurrentUser.js';
 const padOrderNumber = (num, length = 4) => String(num).padStart(length, '0');
 
 export default function CheckoutPage() {
-  // --- 3. GET FIRESTOREUSER FROM THE UPGRADED HOOK ---
-  const { user, firestoreUser, authLoading } = useCurrentUser();
+  const { user, authLoading } = useCurrentUser();
   const navigate = useNavigate();
   const cart = useCartStore((state) => state.cart);
   const clearCart = useCartStore((state) => state.clearCart);
@@ -33,26 +32,16 @@ export default function CheckoutPage() {
     if (!authLoading) {
       if (!user) {
         navigate('/auth', { state: { from: { pathname: '/checkout' } }, replace: true });
-      } else if (user && firestoreUser) {
-        // --- 4. PRE-FILL FORM FROM FIRESTOREUSER ---
-        // Pre-fill form with data from their Firestore profile
+      } else {
+        // --- FIX: Pre-fill name from user's displayName (from auth) ---
+        // We will get the Firestore 'name' field during the transaction
         setFormData(prev => ({
-          ...prev,
-          name: firestoreUser.name || user.displayName || '',
-          address: firestoreUser.address || '',
-          phone: firestoreUser.phone || ''
-        }));
-      } else if (user && !firestoreUser) {
-         // User is logged in, but we're still waiting for firestoreUser
-         // or it doesn't exist. Pre-fill with auth name for now.
-         setFormData(prev => ({
           ...prev,
           name: user.displayName || '',
         }));
       }
     }
-    // --- 5. ADD FIRESTOREUSER AS A DEPENDENCY ---
-  }, [user, firestoreUser, authLoading, navigate]);
+  }, [user, authLoading, navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -66,7 +55,9 @@ export default function CheckoutPage() {
     setError(''); 
     
     try {
+      // --- 3. RUN THE ENTIRE ORDER CREATION AS A TRANSACTION ---
       const newOrderId = await runTransaction(db, async (transaction) => {
+        // a. Get the user's document
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await transaction.get(userDocRef);
 
@@ -74,18 +65,21 @@ export default function CheckoutPage() {
           throw new Error("User data not found. Cannot place order.");
         }
 
+        // b. Get the customerID and current orderCount
         const userData = userDoc.data();
-        const customerID = userData.customerID;
-        const currentOrderCount = userData.orderCount;
+        const customerID = userData.customerID; // e.g., "00236"
+        const currentOrderCount = userData.orderCount; // e.g., 0
 
         if (!customerID) {
           throw new Error("Customer ID is missing. Cannot place order.");
         }
 
-        const newOrderCount = currentOrderCount + 1;
-        const paddedOrderCount = padOrderNumber(newOrderCount);
-        const finalOrderId = `${customerID}${paddedOrderCount}`;
+        // c. Calculate the new order ID
+        const newOrderCount = currentOrderCount + 1; // e.g., 1
+        const paddedOrderCount = padOrderNumber(newOrderCount); // e.g., "0001"
+        const finalOrderId = `${customerID}${paddedOrderCount}`; // e.g., "002360001"
 
+        // d. Define the new order document and its data
         const newOrderRef = doc(db, 'orders', finalOrderId);
         const orderData = {
           userId: user.uid,
@@ -97,24 +91,24 @@ export default function CheckoutPage() {
           total: totalWithShipping,
           status: "Pending",
           createdAt: serverTimestamp(),
+          // --- We can even store the customerID for easy reference ---
           customerID: customerID 
         };
 
-        // --- 6. UPDATE USER DOC WITH NEW DETAILS ---
-        // This is the key update: save the form data back to the user
-        transaction.update(userDocRef, { 
-          orderCount: newOrderCount,
-          name: formData.name,
-          address: formData.address,
-          phone: formData.phone
-        });
+        // e. Update the user's orderCount
+        transaction.update(userDocRef, { orderCount: newOrderCount });
         
+        // f. Create the new order with our custom ID
         transaction.set(newOrderRef, orderData);
 
+        // g. Return the new ID
         return finalOrderId;
       });
       
+      // 4. Clear the cart
       clearCart();
+
+      // 5. Redirect to success page, passing the new custom order ID
       navigate('/order-success', { state: { orderId: newOrderId } });
 
     } catch (error) {
@@ -125,9 +119,7 @@ export default function CheckoutPage() {
     }
   };
 
-  // --- 7. UPDATE LOADING LOGIC ---
-  // Wait for auth AND firestoreUser to be ready
-  if (authLoading) {
+  if (authLoading || !user) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-600"></div>
