@@ -14,7 +14,6 @@ export default function ItemDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
   
-  // --- NEW: State to track the main image ---
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const navigate = useNavigate();
@@ -42,23 +41,68 @@ export default function ItemDetailPage() {
   }, [productId]);
 
   const handleIncrement = () => {
-    if (product && quantity < product.stockQuantity) {
-      setQuantity(quantity + 1);
+    // Ensure quantity is a number before incrementing
+    const currentQuantity = Number(quantity) || 0;
+    if (product && (currentQuantity + 1) <= product.stockQuantity) {
+      setQuantity(currentQuantity + 1);
     }
   };
 
   const handleDecrement = () => {
-    if (quantity > 1) {
-      setQuantity(quantity - 1);
+    const currentQuantity = Number(quantity) || 0;
+    if (currentQuantity > 1) {
+      setQuantity(currentQuantity - 1);
+    }
+  };
+  
+  // --- NEW: Handler for typing directly into the input ---
+  const handleQuantityChange = (e) => {
+    const value = e.target.value;
+
+    // Allow empty string, so user can delete "1" to type "10"
+    if (value === '') {
+      setQuantity('');
+      return;
+    }
+
+    // Only allow digits
+    if (!/^\d+$/.test(value)) {
+      return;
+    }
+
+    let newQuantity = parseInt(value, 10);
+
+    if (isNaN(newQuantity)) {
+      newQuantity = 1; // Failsafe
+    }
+    
+    if (newQuantity < 1) {
+      newQuantity = 1;
+    }
+
+    if (newQuantity > product.stockQuantity) {
+      newQuantity = product.stockQuantity;
+    }
+    
+    setQuantity(newQuantity);
+  };
+  
+  // --- NEW: Handler for when user clicks away from the input ---
+  const handleQuantityBlur = () => {
+    if (quantity === '') {
+      setQuantity(1); // Reset to 1 if left empty
     }
   };
 
   const handleAddToCart = () => {
-    addToCart(product, quantity);
+    // Ensure we add a valid number, default to 1 if empty
+    const quantityToAdd = Number(quantity) || 1;
+    addToCart(product, quantityToAdd);
   };
 
   const handleBuyNow = () => {
-    addToCart(product, quantity);
+    const quantityToAdd = Number(quantity) || 1;
+    addToCart(product, quantityToAdd);
     navigate('/checkout');
   };
   
@@ -115,7 +159,7 @@ export default function ItemDetailPage() {
       <div className="bg-white p-8 rounded-lg shadow-xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           
-          {/* --- NEW: Image Gallery --- */}
+          {/* --- Image Gallery --- */}
           <div>
             {/* Main Image */}
             <div className="w-full h-auto max-h-[500px] flex items-center justify-center border border-gray-200 rounded-lg overflow-hidden p-4 shadow-inner bg-gray-50">
@@ -145,11 +189,11 @@ export default function ItemDetailPage() {
                       className="w-full h-full object-cover" 
                     />
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* --- END: Image Gallery --- */}
+              ))}
+            </div>
+          )}
+        </div>
+        {/* --- END: Image Gallery --- */}
           
           
           {/* Product Details */}
@@ -176,7 +220,20 @@ export default function ItemDetailPage() {
                   >
                     <MinusIcon className="h-5 w-5" />
                   </button>
-                  <span className="px-5 py-2 text-lg font-semibold">{quantity}</span>
+                  
+                  {/* --- FIX: Replaced <span> with <input> --- */}
+                  <input
+                    type="text"
+                    inputMode="numeric" // For mobile keyboards
+                    pattern="\d*"
+                    value={quantity}
+                    onChange={handleQuantityChange}
+                    onBlur={handleQuantityBlur}
+                    aria-label="Quantity"
+                    className="px-5 py-2 text-lg font-semibold text-center w-20 border-x border-gray-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  />
+                  {/* --- END FIX --- */}
+                  
                   <button
                     onClick={handleIncrement}
                     className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-r-md"
@@ -281,4 +338,6 @@ export default function ItemDetailPage() {
     </div>
   );
 }
+
+
 

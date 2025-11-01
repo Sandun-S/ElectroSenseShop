@@ -7,16 +7,15 @@ import { ShoppingCartIcon } from '@heroicons/react/24/outline';
 export default function ProductCard({ product }) {
   const addToCart = useCartStore((state) => state.addToCart);
 
-  // --- 1. ADDED: Check for out of stock ---
-  const isOutOfStock = !product.stockQuantity || product.stockQuantity === 0;
-
   const handleAddToCart = (e) => {
     e.preventDefault(); // Prevent link navigation
     e.stopPropagation(); // Stop event bubbling
-    if (isOutOfStock) return; // Do not add if out of stock
     addToCart(product);
   };
 
+  // --- NEW: Image Logic ---
+  // Get the first image from the new 'imageUrls' array,
+  // or fall back to the old 'imageUrl' string.
   const displayImage = (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0)
     ? product.imageUrls[0]
     : product.imageUrl;
@@ -24,26 +23,16 @@ export default function ProductCard({ product }) {
   const placeholderImage = `https://placehold.co/400x400/0d9488/white?text=${encodeURIComponent(product.name)}`;
 
   return (
-    // --- 2. ADDED: Add grayscale and opacity if out of stock ---
-    <Link 
-      to={`/products/${product.id}`} 
-      className={`group bg-white rounded-lg shadow-md overflow-hidden flex flex-col hover:shadow-xl transition ${
-        isOutOfStock ? 'opacity-60 grayscale' : ''
-      }`}
-    >
+    <Link to={`/products/${product.id}`} className="group bg-white rounded-lg shadow-md overflow-hidden flex flex-col hover:shadow-xl transition">
       <div className="h-48 overflow-hidden relative">
         <img 
+          // --- UPDATED: Use the new image logic ---
           src={displayImage || placeholderImage} 
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          // Add an error handler for broken image links
           onError={(e) => { e.currentTarget.src = placeholderImage; }}
         />
-        {/* --- 3. ADDED: Out of Stock Badge --- */}
-        {isOutOfStock && (
-          <span className="absolute top-2 left-2 bg-gray-800 text-white text-xs font-semibold px-3 py-1 rounded-full">
-            Out of Stock
-          </span>
-        )}
       </div>
       <div className="p-4 flex flex-col flex-grow">
         <h3 className="text-lg font-semibold text-gray-800 mb-2 truncate" title={product.name}>{product.name}</h3>
@@ -52,13 +41,7 @@ export default function ProductCard({ product }) {
           <span className="text-2xl font-bold text-primary">LKR {product.price.toFixed(2)}</span>
           <button 
             onClick={handleAddToCart}
-            // --- 4. ADDED: Disable button and change style if out of stock ---
-            disabled={isOutOfStock}
-            className={`bg-primary-100 text-primary rounded-full h-10 w-10 flex items-center justify-center transition ${
-              isOutOfStock 
-                ? 'opacity-0' 
-                : 'opacity-0 group-hover:opacity-100 hover:bg-primary hover:text-white'
-            }`}
+            className="bg-primary-100 text-primary rounded-full h-10 w-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-primary hover:text-white"
             aria-label="Add to cart"
           >
             <ShoppingCartIcon className="h-5 w-5" />

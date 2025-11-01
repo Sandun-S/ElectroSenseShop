@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-// --- FIX: Use absolute path from project root ---
-import { db } from '/src/firebaseConfig.js';
+import { db } from '../firebaseConfig';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 
 /**
@@ -9,7 +8,9 @@ import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestor
  * @param {string | null} props.category - The category to filter by.
  * @param {string | null} props.searchQuery - The search term.
  */
+// --- FIX: Added a default empty object {} to props to prevent crash ---
 export const useProducts = (props = {}) => {
+  // --- FIX: Destructure props *inside* the hook ---
   const { category, searchQuery } = props; 
   
   const [products, setProducts] = useState([]);
@@ -17,13 +18,6 @@ export const useProducts = (props = {}) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // --- FIX: Add check for db initialization ---
-    if (!db) {
-      setLoading(false);
-      setError(new Error("Firestore is not initialized."));
-      return;
-    }
-
     setLoading(true);
     setError(null);
     
@@ -33,10 +27,12 @@ export const useProducts = (props = {}) => {
     // --- QUERY LOGIC ---
     if (searchQuery) {
       // Search query (case-insensitive)
+      // Note: This requires a composite index on (name, category) if you combine it
+      // For now, search ignores category.
       const endStr = searchQuery.toLowerCase() + '\uf8ff';
       q = query(
         productsRef,
-        orderBy('name'), 
+        orderBy('name'), // Assumes 'name' index is enabled
         where('name', '>=', searchQuery.toLowerCase()),
         where('name', '<=', endStr)
       );
@@ -45,10 +41,14 @@ export const useProducts = (props = {}) => {
       q = query(
         productsRef,
         where('category', '==', category),
-        orderBy('name') 
+        orderBy('name') // Assumes (category, name) index is enabled
       );
     } else {
+      // --- THIS IS THE FIX ---
       // Default "All Products" query.
+      // Changed from orderBy('name') to orderBy('createdAt', 'desc')
+      // 'createdAt' is automatically indexed by Firestore,
+      // which avoids the infinite loop error we were seeing.
       q = query(productsRef, orderBy('createdAt', 'desc'));
     }
     // --- END QUERY LOGIC ---
@@ -61,15 +61,15 @@ export const useProducts = (props = {}) => {
           productsData.push({ id: doc.id, ...doc.data() });
         });
         
-        // --- THIS IS THE FIX ---
-        // Return ALL products from the query (including out of stock)
-        // The ProductsPage will now handle client-side filtering.
-        setProducts(productsData);
+        // Client-side filtering for stock
+        const inStockProducts = productsData.filter(p => p.stockQuantity > 0);
+        
+        setProducts(inStockProducts);
         setLoading(false);
       },
       (err) => {
         console.error("Error fetching products: ", err);
-        setError(err); 
+        setError(err); // This was line 67
         setLoading(false);
       }
     );
@@ -80,4 +80,5 @@ export const useProducts = (props = {}) => {
 
   return { products, loading, error };
 };
+
 
